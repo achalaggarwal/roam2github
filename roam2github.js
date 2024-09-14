@@ -395,7 +395,9 @@ async function format_and_save(extract_dir, backup_dir, file) {
                     await fs.copy(file_fullpath, path.join(backup_dir, 'markdown', file))
                 }
             } else {
-                reject(`Unhandled filetype: ${file}`)
+               // Handle other file types
+               log(`Unrecognized filetype: ${file}. Copying to 'other' directory.`)
+               await fs.copy(file_fullpath, path.join(backup_dir, 'other', file))
             }
 
             resolve()
