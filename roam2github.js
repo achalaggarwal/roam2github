@@ -48,6 +48,10 @@ const repo_path = getRepoPath()
 const backup_dir = repo_path ? repo_path : path.join(__dirname, 'backup')
 // })();
 
+// Ensure backup directories exist
+fs.ensureDirSync(path.join(backup_dir, 'json'))
+fs.ensureDirSync(path.join(backup_dir, 'edn'))
+fs.ensureDirSync(path.join(backup_dir, 'markdown'))
 
 function getRepoPath() {
     const ubuntuPath = path.join('/', 'home', 'runner', 'work')
@@ -380,7 +384,16 @@ async function format_and_save(extract_dir, backup_dir, file) {
                 if (BACKUP_JSON === 'true') {
                     await fs.copy(file_fullpath, path.join(backup_dir, 'json', file))
                 }
-                // Add logic for EDN and Markdown if needed
+            } else if (file.endsWith('.edn')) {
+                // Handle EDN file
+                if (BACKUP_EDN === 'true') {
+                    await fs.copy(file_fullpath, path.join(backup_dir, 'edn', file))
+                }
+            } else if (file.endsWith('.md')) {
+                // Handle Markdown file
+                if (BACKUP_MARKDOWN === 'true') {
+                    await fs.copy(file_fullpath, path.join(backup_dir, 'markdown', file))
+                }
             } else {
                 reject(`Unhandled filetype: ${file}`)
             }
