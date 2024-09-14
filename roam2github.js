@@ -323,22 +323,17 @@ async function roam_export(page, filetype, download_dir) {
 function waitForDownload(download_dir) {
     return new Promise(async (resolve, reject) => {
         try {
-
             checkDownloads()
 
             async function checkDownloads() {
-
                 const files = await fs.readdir(download_dir)
                 const file = files[0]
 
-                if (file && file.match(/\.zip$/)) { // checks for .zip file
-
+                if (file) {
                     log(file, 'downloaded!')
                     resolve()
-
                 } else checkDownloads()
             }
-
         } catch (err) { reject(err) }
     })
 }
@@ -346,50 +341,19 @@ function waitForDownload(download_dir) {
 async function extract_file(download_dir) {
     return new Promise(async (resolve, reject) => {
         try {
-
             const files = await fs.readdir(download_dir)
 
             if (files.length === 0) reject('Extraction error: download_dir is empty')
             if (files.length > 1) reject('Extraction error: download_dir contains more than one file')
 
             const file = files[0]
-
-            if (!file.match(/\.zip$/)) reject('Extraction error: .zip not found')
-
             const file_fullpath = path.join(download_dir, file)
             const extract_dir = path.join(download_dir, '_extraction')
 
-            log('- Extracting ' + file)
-            await extract(file_fullpath, {
-                dir: extract_dir,
-
-                onEntry(entry, zipfile) {
-                    if (entry.fileName.endsWith('/')) {
-                        // log('  - Skipping subdirectory', entry.fileName)
-                        return false
-                    }
-
-                    if (md_skip_blanks && entry.uncompressedSize <= 3) { // files with 3 bytes just have a one blank block (like blank daily notes)
-                        // log('  - Skipping blank file', entry.fileName, `(${entry.uncompressedSize} bytes`)
-                        return false
-                    }
-
-                    // log('  -', entry.fileName)
-                    entry.fileName = sanitizeFileName(entry.fileName)
-
-                    if (fs.pathExistsSync(path.join(extract_dir, entry.fileName))) {
-
-                        log('WARNING: file collision detected. Overwriting file with (sanitized) name:', entry.fileName)
-                        // reject(`Extraction error: file collision detected with sanitized filename: ${entry.fileName}`)
-                        // TODO? renaming to...
-                    }
-
-                    return true
-                }
-            })
+            await fs.ensureDir(extract_dir)
+            await fs.move(file_fullpath, path.join(extract_dir, file), { overwrite: true })
 
             resolve()
-
         } catch (err) { reject(err) }
     })
 }
