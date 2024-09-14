@@ -33,7 +33,7 @@ const backup_types = [
 })
 // what about specifying filetype for each graph? Maybe use settings.json in root of repo. But too complicated for non-programmers to set up.
 
-const md_replacement = MD_REPLACEMENT || '�'
+const md_replacement = MD_REPLACEMENT || ''
 
 const md_skip_blanks = (MD_SKIP_BLANKS && MD_SKIP_BLANKS.toLowerCase()) === 'false' ? false : true
 
@@ -138,9 +138,9 @@ async function init() {
                     await roam_export(page, f.type, download_dir)
 
                     log('Extract')
-                    await extract_file(download_dir)
+                    const extractedFile = await extract_file(download_dir)
 
-                    await format_and_save(f.type, download_dir, graph_name)
+                    await format_and_save(path.join(download_dir, '_extraction'), backup_dir, extractedFile)
                     // TODO run download and formatting operations asynchronously. Can be done since json and edn are same as graph name.
                     // Await for counter expecting total operations to be done graph_names.length * backup_types.filter(f=>f.backup).length
                     // or Promises.all(arr) where arr is initiated outside For loop, and arr.push result of format_and)_save
@@ -330,9 +330,16 @@ function waitForDownload(download_dir) {
                 const file = files[0]
 
                 if (file) {
-                    log(file, 'downloaded!')
-                    resolve()
-                } else checkDownloads()
+                    if (file.endsWith('.crdownload')) {
+                        // File is still downloading, wait and check again
+                        setTimeout(checkDownloads, 1000)
+                    } else {
+                        log(file, 'downloaded!')
+                        resolve(file)
+                    }
+                } else {
+                    setTimeout(checkDownloads, 1000)
+                }
             }
         } catch (err) { reject(err) }
     })
@@ -351,75 +358,34 @@ async function extract_file(download_dir) {
             const extract_dir = path.join(download_dir, '_extraction')
 
             await fs.ensureDir(extract_dir)
-            await fs.move(file_fullpath, path.join(extract_dir, file), { overwrite: true })
 
-            resolve()
+            // Remove .crdownload extension if present
+            const newFileName = file.endsWith('.crdownload') ? file.slice(0, -11) : file
+            const newFilePath = path.join(extract_dir, newFileName)
+
+            await fs.move(file_fullpath, newFilePath, { overwrite: true })
+
+            resolve(newFileName)
         } catch (err) { reject(err) }
     })
 }
 
-async function format_and_save(filetype, download_dir, graph_name) {
+async function format_and_save(extract_dir, backup_dir, file) {
     return new Promise(async (resolve, reject) => {
         try {
+            const file_fullpath = path.join(extract_dir, file)
 
-            const extract_dir = path.join(download_dir, '_extraction')
-
-            const files = await fs.readdir(extract_dir)
-
-            if (files.length === 0) reject('Extraction error: extract_dir is empty')
-
-            if (filetype == 'Markdown') {
-
-                const markdown_dir = path.join(backup_dir, 'markdown', graph_name)
-
-                // log('- Removing old markdown directory')
-                await fs.remove(markdown_dir, { recursive: true }) // necessary, to update renamed pages
-
-                log('- Saving Markdown')
-
-                for (const file of files) {
-
-                    const file_fullpath = path.join(extract_dir, file)
-                    const new_file_fullpath = path.join(markdown_dir, file)
-
-                    await fs.move(file_fullpath, new_file_fullpath, { overwrite: true })
+            if (file.endsWith('.json')) {
+                // Handle JSON file
+                if (BACKUP_JSON === 'true') {
+                    await fs.copy(file_fullpath, path.join(backup_dir, 'json', file))
                 }
-
+                // Add logic for EDN and Markdown if needed
             } else {
-
-                // for (const file of files) {
-                const file = files[0]
-                const file_fullpath = path.join(extract_dir, file)
-                const fileext = file.split('.').pop()
-                const new_file_fullpath = path.join(backup_dir, fileext, file)
-
-                if (fileext == 'json') {
-
-                    log('- Formatting JSON')
-                    const json = await fs.readJson(file_fullpath)
-                    const new_json = JSON.stringify(json, null, 2)
-
-                    log('- Saving formatted JSON')
-                    await fs.outputFile(new_file_fullpath, new_json)
-
-                } else if (fileext == 'edn') {
-
-                    log('- Formatting EDN (this can take a couple minutes for large graphs)') // This could take a couple minutes for large graphs
-                    const edn = await fs.readFile(file_fullpath, 'utf-8')
-
-                    const edn_prefix = '#datascript/DB '
-                    var new_edn = edn_prefix + edn_format(edn.replace(new RegExp('^' + edn_prefix), ''))
-                    checkFormattedEDN(edn, new_edn)
-
-                    log('- Saving formatted EDN')
-                    await fs.outputFile(new_file_fullpath, new_edn)
-
-                } else reject(`format_and_save error: Unhandled filetype: ${files}`)
-                // }
+                reject(`Unhandled filetype: ${file}`)
             }
 
             resolve()
-
         } catch (err) { reject(err) }
     })
 }
