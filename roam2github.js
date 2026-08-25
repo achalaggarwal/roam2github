@@ -136,7 +136,8 @@ async function init() {
             for (const f of backup_types) {
                 if (f.backup) {
                     const download_dir = path.join(tmp_dir, graph_name, f.type.toLowerCase())
-                    await page._client.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: download_dir })
+                    const cdp = await page.createCDPSession()
+                    await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: download_dir, eventsEnabled: true })
 
                     log('Export', f.type)
                     await roam_export(page, f.type, download_dir)
@@ -246,7 +247,7 @@ async function roam_export(page, filetype, download_dir) {
             await page.waitForSelector('.bp3-icon-more')
 
             log('- (check for "Sync Quick Capture Notes")') // to check for "Sync Quick Capture Notes with Workspace" modal
-            await page.waitForTimeout(1000)
+            await new Promise(resolve => setTimeout(resolve, 1000))
 
             if (await page.$('.rm-quick-capture-sync-modal')) {
                 log('- Detected "Sync Quick Capture Notes" modal. Closing')

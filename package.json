@@ -8,7 +8,7 @@
     "edn-formatter": "everruler12/edn-formatter",
     "extract-zip": "everruler12/extract-zip",
     "fs-extra": "^9.1.0",
-    "puppeteer": "^5.5.0",
+    "puppeteer": "24.43.1",
     "sanitize-filename": "^1.6.3"
   },
   "devDependencies": {},
