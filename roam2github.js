@@ -176,14 +176,6 @@ async function roam_login(browser) {
             log('- Checking for email field')
             await page.waitForSelector('input[name="email"]')
 
-            log('- (Wait for auto-refresh)')
-            // log('- (Wait 10 seconds for auto-refresh)')
-            // await page.waitForTimeout(10000) // because Roam auto refreshes the sign-in page, as mentioned here https://github.com/MatthieuBizien/roam-to-git/issues/87#issuecomment-763281895 (and can be seen in non-headless browser)
-
-            await page.waitForSelector('.loading-astrolabe', { timeout: 20000 })
-            await page.waitForSelector('.loading-astrolabe', { hidden: true })
-            // log('- auto-refreshed')
-
             log('- Filling email field')
             await page.type('input[name="email"]', R2G_EMAIL)
 
@@ -198,6 +190,11 @@ async function roam_login(browser) {
 
             const login_error_selector = 'div[style="font-size: 12px; color: red;"]' // error message on login page
             const graphs_selector = '.my-graphs' // successful login, on graphs selection page
+            const login_loading_selector = '.loading-astrolabe'
+
+            log('- Waiting for login')
+            await page.waitForSelector(login_error_selector + ', ' + graphs_selector + ', ' + login_loading_selector, { timeout: 20000 })
+            await page.waitForSelector(login_loading_selector, { hidden: true })
 
             await page.waitForSelector(login_error_selector + ', ' + graphs_selector)
 
