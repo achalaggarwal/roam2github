@@ -4,6 +4,8 @@ const puppeteer = require('puppeteer')
 const extract = require('extract-zip')
 const sanitize = require('sanitize-filename')
 const edn_format = require('edn-formatter').edn_formatter.core.format
+const zlib = require('zlib')
+const { pipeline } = require('stream/promises')
 
 console.time('R2G Exit after')
 
@@ -409,14 +411,11 @@ async function format_and_save(filetype, download_dir, graph_name) {
                 const stable_path = dated_path.replace(/-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/, '')
 
                 if (fileext == 'json') {
-                    log('- Formatting JSON')
-                    const json = await fs.readJson(file_fullpath)
-
-                    log('- Saving formatted JSON')
-                    await fs.outputFile(stable_path, JSON.stringify(json, null, 2))
+                    log('- Saving compressed JSON')
+                    await compress_and_save(file_fullpath, stable_path + '.gz')
                 } else if (fileext == 'edn') {
-                    log('- Saving EDN')
-                    await fs.copy(file_fullpath, stable_path, { overwrite: true })
+                    log('- Saving compressed EDN')
+                    await compress_and_save(file_fullpath, stable_path + '.gz')
                 } else {
                     return reject(`format_and_save error: Unhandled filetype: ${file}`)
                 }
@@ -425,6 +424,15 @@ async function format_and_save(filetype, download_dir, graph_name) {
             resolve()
         } catch (err) { reject(err) }
     })
+}
+
+async function compress_and_save(source_path, destination_path) {
+    await fs.ensureDir(path.dirname(destination_path))
+    await pipeline(
+        fs.createReadStream(source_path),
+        zlib.createGzip(),
+        fs.createWriteStream(destination_path)
+    )
 }
 
 
