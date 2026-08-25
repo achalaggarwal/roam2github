@@ -142,10 +142,12 @@ async function init() {
                     log('Export', f.type)
                     await roam_export(page, f.type, download_dir)
 
-                    log('Extract')
-                    const extractedFile = await extract_file(download_dir)
+                    if (f.type == 'Markdown') {
+                        log('Extract')
+                        await extract_file(download_dir)
+                    }
 
-                    await format_and_save(path.join(download_dir, '_extraction'), backup_dir, extractedFile)
+                    await format_and_save(f.type, download_dir, graph_name)
                     // TODO run download and formatting operations asynchronously. Can be done since json and edn are same as graph name.
                     // Await for counter expecting total operations to be done graph_names.length * backup_types.filter(f=>f.backup).length
                     // or Promises.all(arr) where arr is initiated outside For loop, and arr.push result of format_and)_save
@@ -341,50 +343,89 @@ async function extract_file(download_dir) {
         try {
             const files = await fs.readdir(download_dir)
 
-            if (files.length === 0) reject('Extraction error: download_dir is empty')
-            if (files.length > 1) reject('Extraction error: download_dir contains more than one file')
+            if (files.length === 0) return reject('Extraction error: download_dir is empty')
+            if (files.length > 1) return reject('Extraction error: download_dir contains more than one file')
 
             const file = files[0]
+
+            if (!file.endsWith('.zip')) return reject('Extraction error: .zip not found')
+
             const file_fullpath = path.join(download_dir, file)
             const extract_dir = path.join(download_dir, '_extraction')
 
-            await fs.ensureDir(extract_dir)
+            log('- Extracting ' + file)
+            await extract(file_fullpath, {
+                dir: extract_dir,
 
-            // Remove .crdownload extension if present
-            const newFileName = file.endsWith('.crdownload') ? file.slice(0, -11) : file
-            const newFilePath = path.join(extract_dir, newFileName)
+                onEntry(entry) {
+                    if (entry.fileName.endsWith('/')) return false
+                    if (md_skip_blanks && entry.uncompressedSize <= 3) return false
 
-            await fs.move(file_fullpath, newFilePath, { overwrite: true })
+                    entry.fileName = sanitizeFileName(entry.fileName)
 
-            resolve(newFileName)
+                    if (fs.pathExistsSync(path.join(extract_dir, entry.fileName))) {
+                        log('WARNING: file collision detected. Overwriting file with (sanitized) name:', entry.fileName)
+                    }
+
+                    return true
+                }
+            })
+
+            resolve()
         } catch (err) { reject(err) }
     })
 }
 
-async function format_and_save(extract_dir, backup_dir, file) {
+async function format_and_save(filetype, download_dir, graph_name) {
     return new Promise(async (resolve, reject) => {
         try {
-            const file_fullpath = path.join(extract_dir, file)
+            if (filetype == 'Markdown') {
+                const extract_dir = path.join(download_dir, '_extraction')
+                const files = await fs.readdir(extract_dir)
 
-            if (file.endsWith('.json')) {
-                // Handle JSON file
-                if (BACKUP_JSON === 'true') {
-                    await fs.copy(file_fullpath, path.join(backup_dir, 'json', file))
-                }
-            } else if (file.endsWith('.edn')) {
-                // Handle EDN file
-                if (BACKUP_EDN === 'true') {
-                    await fs.copy(file_fullpath, path.join(backup_dir, 'edn', file))
-                }
-            } else if (file.endsWith('.md')) {
-                // Handle Markdown file
-                if (BACKUP_MARKDOWN === 'true') {
-                    await fs.copy(file_fullpath, path.join(backup_dir, 'markdown', file))
+                if (files.length === 0) return reject('Extraction error: extract_dir is empty')
+
+                const markdown_dir = path.join(backup_dir, 'markdown', graph_name)
+                await fs.remove(markdown_dir, { recursive: true })
+
+                log('- Saving Markdown')
+                for (const file of files) {
+                    await fs.move(
+                        path.join(extract_dir, file),
+                        path.join(markdown_dir, file),
+                        { overwrite: true }
+                    )
                 }
             } else {
-               // Handle other file types
-               log(`Unrecognized filetype: ${file}. Copying to 'other' directory.`)
-               await fs.copy(file_fullpath, path.join(backup_dir, 'other', file))
+                const files = await fs.readdir(download_dir)
+
+                if (files.length === 0) return reject('Save error: download_dir is empty')
+                if (files.length > 1) return reject('Save error: download_dir contains more than one file')
+
+                const file = files[0]
+                const file_fullpath = path.join(download_dir, file)
+                const fileext = path.extname(file).slice(1).toLowerCase()
+                const dated_path = path.join(backup_dir, fileext, file)
+                const stable_path = dated_path.replace(/-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}/, '')
+
+                if (fileext == 'json') {
+                    log('- Formatting JSON')
+                    const json = await fs.readJson(file_fullpath)
+
+                    log('- Saving formatted JSON')
+                    await fs.outputFile(stable_path, JSON.stringify(json, null, 2))
+                } else if (fileext == 'edn') {
+                    log('- Formatting EDN (this can take a couple minutes for large graphs)')
+                    const edn = await fs.readFile(file_fullpath, 'utf-8')
+                    const edn_prefix = '#datascript/DB '
+                    const new_edn = edn_prefix + edn_format(edn.replace(new RegExp('^' + edn_prefix), ''))
+                    checkFormattedEDN(edn, new_edn)
+
+                    log('- Saving formatted EDN')
+                    await fs.outputFile(stable_path, new_edn)
+                } else {
+                    return reject(`format_and_save error: Unhandled filetype: ${file}`)
+                }
             }
 
             resolve()
