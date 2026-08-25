@@ -265,10 +265,12 @@ async function roam_export(page, filetype, download_dir) {
             log('- Clicking "Export All" option')
             await page.evaluate(() => { [...document.querySelectorAll('li .bp3-fill')].find(li => li.innerText.match('Export All')).click() })
 
-            const chosen_format_selector = '.bp3-dialog .bp3-button-text'
+            const export_dialog_selector = '.rm-modal-dialog--export-graph'
+            const chosen_format_selector = export_dialog_selector + ' .bp3-button-text'
 
             log('- Checking for export dialog')
-            await page.waitForSelector(chosen_format_selector)
+            await page.waitForSelector(export_dialog_selector, { visible: true })
+            await page.waitForSelector(chosen_format_selector, { visible: true })
 
             const chosen_format = (await page.$eval(chosen_format_selector, el => el.innerText)).trim()
             log(`- format chosen is "${chosen_format}"`)
@@ -282,20 +284,22 @@ async function roam_export(page, filetype, download_dir) {
                 await page.waitForSelector('.bp3-text-overflow-ellipsis')
 
                 log('- Checking for dropdown option', filetype)
-                await page.waitForFunction((filetype) => [...document.querySelectorAll('.bp3-text-overflow-ellipsis')].find(dropdown => dropdown.innerText.match(filetype)), filetype)
+                await page.waitForFunction((filetype) => [...document.querySelectorAll('.bp3-text-overflow-ellipsis')].find(dropdown => dropdown.innerText.trim() === filetype), {}, filetype)
 
                 log('- Clicking', filetype)
-                await page.evaluate((filetype) => { [...document.querySelectorAll('.bp3-text-overflow-ellipsis')].find(dropdown => dropdown.innerText.match(filetype)).click() }, filetype)
+                await page.evaluate((filetype) => { [...document.querySelectorAll('.bp3-text-overflow-ellipsis')].find(dropdown => dropdown.innerText.trim() === filetype).click() }, filetype)
 
             } else {
                 log('-', filetype, 'already selected')
             }
 
+            const export_button_selector = export_dialog_selector + ' button.bp3-button.bp3-intent-primary'
+
             log('- Checking for "Export All" button')
-            await page.waitForFunction(() => document.querySelector('button.bp3-button.bp3-intent-primary').innerText == 'Export All')
+            await page.waitForSelector(export_button_selector, { visible: true })
 
             log('- Clicking "Export All" button')
-            await page.evaluate(() => { document.querySelector('button.bp3-button.bp3-intent-primary').click() })
+            await page.click(export_button_selector)
 
             log('- Waiting for download to start')
             await page.waitForSelector('.bp3-spinner')
