@@ -415,14 +415,8 @@ async function format_and_save(filetype, download_dir, graph_name) {
                     log('- Saving formatted JSON')
                     await fs.outputFile(stable_path, JSON.stringify(json, null, 2))
                 } else if (fileext == 'edn') {
-                    log('- Formatting EDN (this can take a couple minutes for large graphs)')
-                    const edn = await fs.readFile(file_fullpath, 'utf-8')
-                    const edn_prefix = '#datascript/DB '
-                    const new_edn = edn_prefix + edn_format(edn.replace(new RegExp('^' + edn_prefix), ''))
-                    checkFormattedEDN(edn, new_edn)
-
-                    log('- Saving formatted EDN')
-                    await fs.outputFile(stable_path, new_edn)
+                    log('- Saving EDN')
+                    await fs.copy(file_fullpath, stable_path, { overwrite: true })
                 } else {
                     return reject(`format_and_save error: Unhandled filetype: ${file}`)
                 }
