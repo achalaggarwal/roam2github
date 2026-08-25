@@ -227,19 +227,8 @@ async function roam_open_graph(page, graph_name) {
             log('- Navigating to graph')
             await page.goto(`https://roamresearch.com/#/app/${graph_name}?disablecss=true&disablejs=true`)
 
-            // log('- Checking for astrolabe spinner')
-            await page.waitForSelector('.loading-astrolabe')
-            log('- astrolabe spinning...')
-
-            await page.waitForSelector('.loading-astrolabe', { hidden: true })
-            log('- astrolabe spinning stopped')
-
-            // try {
-            await page.waitForSelector('.roam-app') // add short timeout here, if fails, don't exit code 1, and instead CHECK if have permission to view graph
-            // } catch (err) {
-            //     await page.waitForSelector('.navbar') // Likely screen saying 'You do not have permission to view this database'
-            //     reject()
-            // }
+            log('- Waiting for graph')
+            await page.waitForSelector('.bp3-icon-more', { visible: true })
 
             log('Graph loaded!')
             resolve(page)
