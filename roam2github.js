@@ -301,12 +301,7 @@ async function roam_export(page, filetype, download_dir) {
             log('- Clicking "Export All" button')
             await page.click(export_button_selector)
 
-            log('- Waiting for download to start')
-            await page.waitForSelector('.bp3-spinner')
-
-            await page.waitForSelector('.bp3-spinner', { hidden: true })
-            log('- Downloading')
-
+            log('- Waiting for download')
             await waitForDownload(download_dir)
 
             resolve()
@@ -317,24 +312,25 @@ async function roam_export(page, filetype, download_dir) {
 
 function waitForDownload(download_dir) {
     return new Promise(async (resolve, reject) => {
+        const started_at = Date.now()
+
         try {
             checkDownloads()
 
             async function checkDownloads() {
-                const files = await fs.readdir(download_dir)
-                const file = files[0]
+                try {
+                    const files = await fs.readdir(download_dir)
+                    const file = files[0]
 
-                if (file) {
-                    if (file.endsWith('.crdownload')) {
-                        // File is still downloading, wait and check again
-                        setTimeout(checkDownloads, 1000)
-                    } else {
+                    if (file && !file.endsWith('.crdownload')) {
                         log(file, 'downloaded!')
                         resolve(file)
+                    } else if (Date.now() - started_at >= timeout) {
+                        reject(`Download timed out after ${timeout}ms`)
+                    } else {
+                        setTimeout(checkDownloads, 1000)
                     }
-                } else {
-                    setTimeout(checkDownloads, 1000)
-                }
+                } catch (err) { reject(err) }
             }
         } catch (err) { reject(err) }
     })
